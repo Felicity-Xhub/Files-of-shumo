@@ -1,0 +1,204 @@
+{
+  "model": "shrinking-radius normalized-coordinate variable-property radial finite volume",
+  "criterion": "first time max_r C(r,t) <= 0.15 kg/kg",
+  "parameters": {
+    "initial_radius_m": 0.02,
+    "initial_temperature_K": 301.15,
+    "initial_moisture_kgkg": 2.55,
+    "target_moisture_kgkg": 0.15,
+    "heat_transfer_coefficient_W_m2K": 25.0,
+    "mass_transfer_coefficient_m_s": 8e-07,
+    "boundary_constant_after_s": 14400.0
+  },
+  "numerics": {
+    "intervals": 1280,
+    "nodes": 1281,
+    "initial_physical_step_cm": 0.0015625,
+    "rtol": 1e-09,
+    "atol": 1e-11,
+    "max_step_s": 60.0,
+    "nfev": 24081,
+    "njev": 561,
+    "nlu": 2848,
+    "output_rows": 3053
+  },
+  "event": {
+    "event_time_s": 182973.99775769553,
+    "event_time_h": 50.82611048824876,
+    "event_time_days": 2.1177546036770316,
+    "radius_at_event_cm": 1.2,
+    "critical_radius_cm": 0.0,
+    "max_moisture_kgkg": 0.15,
+    "center_moisture_kgkg": 0.15,
+    "surface_moisture_kgkg": 0.05249646543738054,
+    "reference_area_weighted_moisture_kgkg": 0.11840278259895802,
+    "center_temperature_C": 50.16500000000002,
+    "surface_temperature_C": 50.16500000000002
+  },
+  "event_checks": {
+    "max_moisture_one_second_before": 0.1500005166334882,
+    "max_moisture_at_event": 0.15,
+    "all_nodes_at_or_below_threshold": true
+  },
+  "certification": {
+    "certification_time_s": 183120.0,
+    "certification_time_h": 50.86666666666667,
+    "strict_margin_kgkg": 5e-05,
+    "max_moisture_kgkg": 0.14992464074305412,
+    "all_nodes_strictly_below_target": true
+  },
+  "model_assumptions": {
+    "coordinate": "x=r/R(t) is a uniformly shrinking material coordinate; the state is followed with the material, so no separate Eulerian coordinate-velocity term is added.",
+    "surface_equilibrium": "air moisture is used as an effective surface-equilibrium moisture approximation because no sorption isotherm is supplied.",
+    "post_4h_environment": "air temperature and moisture remain at the 4 h values.",
+    "geometry": "one-dimensional radial cylindrical transfer; end effects are neglected.",
+    "energy": "latent-heat coupling is not explicitly included."
+  },
+  "boundary_after_4h": {
+    "air_temperature_C": 50.16500000000002,
+    "air_moisture_kgkg": 0.04986
+  },
+  "radius_data": {
+    "observations": 145,
+    "last_time_h": 72.0,
+    "last_radius_cm": 1.198
+  },
+  "conservation": {
+    "max_absolute_reference_balance_residual": 2.976153623102107e-06,
+    "max_relative_reference_balance_residual": 3.895871967851577e-07
+  },
+  "convergence": [
+    {
+      "intervals": 160,
+      "nodes": 161,
+      "initial_physical_step_cm": 0.0125,
+      "event_time_h": 50.961324419787715,
+      "event_time_difference_s_vs_finest": 486.7701535402448,
+      "nfev": 24469,
+      "njev": 589,
+      "nlu": 2897
+    },
+    {
+      "intervals": 320,
+      "nodes": 321,
+      "initial_physical_step_cm": 0.00625,
+      "event_time_h": 50.85590241777234,
+      "event_time_difference_s_vs_finest": 107.25094628491206,
+      "nfev": 24114,
+      "njev": 574,
+      "nlu": 2867
+    },
+    {
+      "intervals": 640,
+      "nodes": 641,
+      "initial_physical_step_cm": 0.003125,
+      "event_time_h": 50.83190150064668,
+      "event_time_difference_s_vs_finest": 20.84764463250758,
+      "nfev": 24224,
+      "njev": 589,
+      "nlu": 2874
+    },
+    {
+      "intervals": 1280,
+      "nodes": 1281,
+      "initial_physical_step_cm": 0.0015625,
+      "event_time_h": 50.82611048824876,
+      "event_time_difference_s_vs_finest": 0.0,
+      "nfev": 24077,
+      "njev": 561,
+      "nlu": 2847
+    }
+  ],
+  "sensitivity": [
+    {
+      "scenario": "基准",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 50.961324419787715,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.05250280113255791
+    },
+    {
+      "scenario": "h -10%",
+      "h_scale": 0.9,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 50.96939156111704,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.05250280113105903
+    },
+    {
+      "scenario": "h +10%",
+      "h_scale": 1.1,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 50.954779983052084,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.05250280113381492
+    },
+    {
+      "scenario": "hm -10%",
+      "h_scale": 1.0,
+      "hm_scale": 0.9,
+      "D_scale": 1.0,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 51.23298350231357,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.05279538308203015
+    },
+    {
+      "scenario": "hm +10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.1,
+      "D_scale": 1.0,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 50.760542138122084,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.052263420737484724
+    },
+    {
+      "scenario": "D -10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 0.9,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 55.97000451017789,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.05223948121488715
+    },
+    {
+      "scenario": "D +10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 1.1,
+      "shrinkage_scale": 1.0,
+      "event_time_h": 46.878392676406506,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.05276612392420791
+    },
+    {
+      "scenario": "收缩量 -10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "shrinkage_scale": 0.9,
+      "event_time_h": 56.94158732665874,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.0523382279358683
+    },
+    {
+      "scenario": "收缩量 +10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "shrinkage_scale": 1.1,
+      "event_time_h": 45.41058281897578,
+      "base_radius_at_event_cm": 1.2,
+      "surface_moisture_at_event": 0.052690887268347905
+    }
+  ]
+}

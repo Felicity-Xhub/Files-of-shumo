@@ -1,0 +1,3 @@
+﻿scenario,grid_intervals,observation_time_h,event_reached,center_moisture_kgkg
+附件2动态收缩,1280,50.86666666666667,True,0.14992464074305412
+固定半径2 cm,1280,72.0,False,0.2236834467948473
