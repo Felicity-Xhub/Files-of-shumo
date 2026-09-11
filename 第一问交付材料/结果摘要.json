@@ -1,0 +1,159 @@
+{
+  "input": "C:\\Users\\Lenovo\\Desktop\\a\\outputs\\stage3\\environment_si.csv",
+  "model": "one-dimensional radial vertex-centered finite volume",
+  "time_integrator": "scipy.solve_ivp BDF",
+  "parameters": {
+    "radius_m": 0.02,
+    "initial_temperature_K": 301.15,
+    "initial_moisture_kgkg": 2.55,
+    "density_kg_m3": 820.0,
+    "heat_capacity_J_kgK": 2600.0,
+    "thermal_conductivity_W_mK": 0.36,
+    "heat_transfer_coefficient_W_m2K": 25.0,
+    "mass_transfer_coefficient_m_s": 8e-07,
+    "diffusivity_formula": "7e-9*exp(-0.89/C) m2/s"
+  },
+  "numerics": {
+    "grid_step_cm": 0.0015625,
+    "radial_nodes": 1281,
+    "rtol": 1e-10,
+    "atol": 1e-12,
+    "max_step_s": 10.0,
+    "nfev": 3377,
+    "njev": 76,
+    "nlu": 381
+  },
+  "results": {
+    "temperature_C_at_1800s_center": 33.57534476082981,
+    "temperature_C_at_1800s_surface": 36.785560297498364,
+    "moisture_at_1800s_center": 2.549992402121491,
+    "moisture_at_1800s_surface": 1.5102349251867548,
+    "air_temperature_C_at_1800s": 41.51299999999998,
+    "air_moisture_at_1800s": 0.03307,
+    "volume_weighted_temperature_C_at_1800s": 35.16791401094911,
+    "volume_weighted_moisture_at_1800s": 2.293556854987034
+  },
+  "conservation": {
+    "initial_integrated_moisture_per_unit_length": 0.0032044245066612876,
+    "final_integrated_moisture_per_unit_length": 0.0028821685464868363,
+    "max_absolute_balance_residual": 6.611485559872808e-10,
+    "max_relative_balance_residual": 2.0516255327888183e-06
+  },
+  "convergence": [
+    {
+      "grid_step_cm": 0.0125,
+      "radial_nodes": 161,
+      "max_abs_temperature_difference_C": 2.890023222335003e-05,
+      "max_abs_moisture_difference_kgkg": 0.00045777829321913543,
+      "nfev": 3344,
+      "njev": 75,
+      "nlu": 386
+    },
+    {
+      "grid_step_cm": 0.00625,
+      "radial_nodes": 321,
+      "max_abs_temperature_difference_C": 6.309126092673978e-06,
+      "max_abs_moisture_difference_kgkg": 0.0001086609941349792,
+      "nfev": 3326,
+      "njev": 73,
+      "nlu": 381
+    },
+    {
+      "grid_step_cm": 0.003125,
+      "radial_nodes": 641,
+      "max_abs_temperature_difference_C": 1.266577385194978e-06,
+      "max_abs_moisture_difference_kgkg": 2.1716006969541013e-05,
+      "nfev": 3388,
+      "njev": 76,
+      "nlu": 385
+    },
+    {
+      "grid_step_cm": 0.0015625,
+      "radial_nodes": 1281,
+      "max_abs_temperature_difference_C": 0.0,
+      "max_abs_moisture_difference_kgkg": 0.0,
+      "nfev": 3377,
+      "njev": 76,
+      "nlu": 381
+    }
+  ],
+  "sensitivity": [
+    {
+      "scenario": "基准",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "center_temperature_C_1800s": 33.57534418206649,
+      "surface_temperature_C_1800s": 36.785559289497826,
+      "center_moisture_1800s": 2.549992371779374,
+      "surface_moisture_1800s": 1.5102397546997888,
+      "volume_weighted_moisture_1800s": 2.2935516858881666
+    },
+    {
+      "scenario": "h -10%",
+      "h_scale": 0.9,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "center_temperature_C_1800s": 33.29746901084758,
+      "surface_temperature_C_1800s": 36.40879608304169,
+      "center_moisture_1800s": 2.549992371779331,
+      "surface_moisture_1800s": 1.510239754710955,
+      "volume_weighted_moisture_1800s": 2.2935516858864538
+    },
+    {
+      "scenario": "h +10%",
+      "h_scale": 1.1,
+      "hm_scale": 1.0,
+      "D_scale": 1.0,
+      "center_temperature_C_1800s": 33.82337330743553,
+      "surface_temperature_C_1800s": 37.11562052540614,
+      "center_moisture_1800s": 2.5499923717793953,
+      "surface_moisture_1800s": 1.5102397543873036,
+      "volume_weighted_moisture_1800s": 2.2935516858122384
+    },
+    {
+      "scenario": "hm -10%",
+      "h_scale": 1.0,
+      "hm_scale": 0.9,
+      "D_scale": 1.0,
+      "center_temperature_C_1800s": 33.57534420036137,
+      "surface_temperature_C_1800s": 36.78555930251764,
+      "center_moisture_1800s": 2.549993028951845,
+      "surface_moisture_1800s": 1.5843517806761753,
+      "volume_weighted_moisture_1800s": 2.3116782861518224
+    },
+    {
+      "scenario": "hm +10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.1,
+      "D_scale": 1.0,
+      "center_temperature_C_1800s": 33.57534418333694,
+      "surface_temperature_C_1800s": 36.7855592864982,
+      "center_moisture_1800s": 2.5499917347468735,
+      "surface_moisture_1800s": 1.4408956569653306,
+      "volume_weighted_moisture_1800s": 2.2766545290329905
+    },
+    {
+      "scenario": "D -10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 0.9,
+      "center_temperature_C_1800s": 33.57534418930669,
+      "surface_temperature_C_1800s": 36.785559269715804,
+      "center_moisture_1800s": 2.5499978011605715,
+      "surface_moisture_1800s": 1.4751983747003978,
+      "volume_weighted_moisture_1800s": 2.2976607619811653
+    },
+    {
+      "scenario": "D +10%",
+      "h_scale": 1.0,
+      "hm_scale": 1.0,
+      "D_scale": 1.1,
+      "center_temperature_C_1800s": 33.57534426162505,
+      "surface_temperature_C_1800s": 36.785559328994395,
+      "center_moisture_1800s": 2.5499789035658544,
+      "surface_moisture_1800s": 1.5413216768315952,
+      "volume_weighted_moisture_1800s": 2.2899340161125865
+    }
+  ]
+}
