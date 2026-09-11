@@ -1,0 +1,40 @@
+{
+  "model": "fixed-radius variable-property radial finite volume with global threshold event",
+  "criterion": "first time max_r C(r,t) <= 0.15 kg/kg",
+  "theoretical_event": {
+    "time_s": 205821.74218748845,
+    "time_h": 57.172706163191236,
+    "critical_radius_cm": 0.0,
+    "center_moisture_kgkg": 0.15,
+    "surface_moisture_kgkg": 0.05253601634294069,
+    "volume_weighted_moisture_kgkg": 0.12431368770998544
+  },
+  "certified_output": {
+    "time_s": 206100.0,
+    "time_h": 57.25,
+    "center_moisture_rounded_4dp": 0.1499,
+    "surface_moisture_rounded_4dp": 0.0525,
+    "output_rows": 3435
+  },
+  "numerics": {
+    "grid_step_cm": 0.00078125,
+    "radial_nodes": 2561,
+    "rtol": 1e-9,
+    "atol": 1e-11,
+    "max_step_s": 60.0,
+    "nfev": 22570,
+    "njev": 457,
+    "nlu": 2626
+  },
+  "verification": {
+    "event_time_difference_s_vs_1281_nodes": 39.33659953871,
+    "max_relative_balance_residual": 5.269670175102287e-7,
+    "max_moisture_one_second_before": 0.1500002930333071,
+    "all_nodes_at_or_below_threshold_at_event": true
+  },
+  "boundary_assumption_after_4h": {
+    "air_temperature_C": 50.165,
+    "air_moisture_kgkg": 0.04986
+  }
+}
+
