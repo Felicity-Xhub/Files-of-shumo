@@ -1,40 +1,59 @@
 {
   "model": "fixed-radius variable-property radial finite volume with global threshold event",
   "criterion": "first time max_r C(r,t) <= 0.15 kg/kg",
-  "theoretical_event": {
-    "time_s": 205821.74218748845,
-    "time_h": 57.172706163191236,
-    "critical_radius_cm": 0.0,
-    "center_moisture_kgkg": 0.15,
-    "surface_moisture_kgkg": 0.05253601634294069,
-    "volume_weighted_moisture_kgkg": 0.12431368770998544
-  },
-  "certified_output": {
-    "time_s": 206100.0,
-    "time_h": 57.25,
-    "center_moisture_rounded_4dp": 0.1499,
-    "surface_moisture_rounded_4dp": 0.0525,
-    "output_rows": 3435
+  "parameters": {
+    "radius_m": 0.02,
+    "initial_temperature_K": 301.15,
+    "initial_moisture_kgkg": 2.55,
+    "target_moisture_kgkg": 0.15,
+    "heat_transfer_coefficient_W_m2K": 25.0,
+    "mass_transfer_coefficient_m_s": 8e-07,
+    "boundary_constant_after_s": 14400.0
   },
   "numerics": {
     "grid_step_cm": 0.00078125,
     "radial_nodes": 2561,
-    "rtol": 1e-9,
+    "rtol": 1e-09,
     "atol": 1e-11,
     "max_step_s": 60.0,
-    "nfev": 22570,
-    "njev": 457,
-    "nlu": 2626
+    "event_nfev": 22570,
+    "continuation_nfev": 32,
+    "total_nfev": 22602,
+    "output_rows": 3435
   },
-  "verification": {
-    "event_time_difference_s_vs_1281_nodes": 39.33659953871,
-    "max_relative_balance_residual": 5.269670175102287e-7,
+  "theoretical_event": {
+    "event_time_s": 205821.74218748845,
+    "event_time_h": 57.172706163191236,
+    "event_time_days": 2.382196090132968,
+    "critical_radius_cm": 0.0,
+    "max_moisture_kgkg": 0.15,
+    "center_moisture_kgkg": 0.15,
+    "surface_moisture_kgkg": 0.05253601634294069,
+    "volume_weighted_moisture_kgkg": 0.12431368770998544,
+    "center_temperature_C": 50.16500000000008,
+    "surface_temperature_C": 50.16500000000002
+  },
+  "conservative_report": {
+    "report_time_s": 206100.0,
+    "report_time_h": 57.25,
+    "max_full_grid_moisture_kgkg": 0.14991856678619842,
+    "strictly_below_0_15": true,
+    "rounds_below_0_1500": true,
+    "provisional_time_s": 206100.0
+  },
+  "event_checks": {
     "max_moisture_one_second_before": 0.1500002930333071,
-    "all_nodes_at_or_below_threshold_at_event": true
+    "max_moisture_at_event": 0.15,
+    "all_nodes_at_or_below_threshold": true
   },
-  "boundary_assumption_after_4h": {
-    "air_temperature_C": 50.165,
+  "boundary_after_4h": {
+    "air_temperature_C": 50.16500000000002,
     "air_moisture_kgkg": 0.04986
-  }
+  },
+  "conservation": {
+    "max_absolute_balance_residual": 1.6063047198790203e-09,
+    "max_relative_balance_residual": 5.269670175102287e-07
+  },
+  "convergence": [],
+  "sensitivity": []
 }
-

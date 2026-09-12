@@ -28,6 +28,8 @@ BOUNDARY_CONSTANT_AFTER_S = 4.0 * 3600.0
 DEFAULT_MAX_TIME_S = 10.0 * 24.0 * 3600.0
 OUTPUT_RADII_M = np.arange(0.0, RADIUS_M + 0.0005, 0.001)
 TABLE_RADII_M = np.array([0.0, 0.005, 0.010, 0.015, 0.020])
+PROVISIONAL_REPORT_TIME_S = 206100.0
+REPORT_ROUNDING_LIMIT = 0.14995
 
 
 @dataclass
@@ -36,6 +38,52 @@ class Grid:
     volumes: np.ndarray
     east_areas: np.ndarray
     dr: float
+
+
+@dataclass
+class PiecewiseSolution:
+    """由若干真实积分区间组成的连续解；禁止区间外外推。"""
+
+    segments: tuple[Any, ...]
+
+    def __post_init__(self) -> None:
+        if not self.segments:
+            raise ValueError("分段解至少需要一个积分区间。")
+        for segment in self.segments:
+            if not segment.success or segment.sol is None:
+                raise RuntimeError("不能拼接失败或缺少连续插值的积分结果。")
+        self.t_min = float(self.segments[0].t[0])
+        self.t_max = float(self.segments[-1].t[-1])
+        self.success = True
+        self.nfev = int(sum(segment.nfev for segment in self.segments))
+        self.njev = int(sum(segment.njev for segment in self.segments))
+        self.nlu = int(sum(segment.nlu for segment in self.segments))
+
+    def sol(self, times: np.ndarray | float) -> np.ndarray:
+        sample_times = np.atleast_1d(np.asarray(times, dtype=float))
+        if not np.isfinite(sample_times).all():
+            raise ValueError("采样时间存在非有限值。")
+        tolerance = 1e-8 * max(1.0, abs(self.t_max))
+        if sample_times.min() < self.t_min - tolerance or sample_times.max() > self.t_max + tolerance:
+            raise ValueError(
+                f"采样时间必须位于真实积分区间[{self.t_min:.9f}, {self.t_max:.9f}] s内。"
+            )
+        state_count = self.segments[0].y.shape[0]
+        values = np.empty((state_count, sample_times.size), dtype=float)
+        assigned = np.zeros(sample_times.size, dtype=bool)
+        for index, segment in enumerate(self.segments):
+            left = float(segment.t[0])
+            right = float(segment.t[-1])
+            if index == 0:
+                mask = (sample_times >= left - tolerance) & (sample_times <= right + tolerance)
+            else:
+                mask = (~assigned) & (sample_times > left - tolerance) & (sample_times <= right + tolerance)
+            if np.any(mask):
+                values[:, mask] = segment.sol(np.clip(sample_times[mask], left, right))
+                assigned[mask] = True
+        if not assigned.all() or not np.isfinite(values).all():
+            raise RuntimeError("分段连续解采样失败或产生非有限值。")
+        return values
 
 
 def parse_args() -> argparse.Namespace:
@@ -188,7 +236,7 @@ def solve_to_threshold(
     h_scale: float = 1.0,
     hm_scale: float = 1.0,
     d_scale: float = 1.0,
-) -> tuple[Grid, Any, float]:
+) -> tuple[Grid, Any, float, np.ndarray]:
     grid = build_grid(step_cm)
     count = len(grid.radii)
     initial = np.concatenate([
@@ -213,33 +261,97 @@ def solve_to_threshold(
     if len(solution.t_events) != 1 or len(solution.t_events[0]) != 1:
         raise RuntimeError(f"在{max_time_s / 86400:.2f}天内未定位到烘干阈值。")
     event_time = float(solution.t_events[0][0])
-    return grid, solution, event_time
+    if len(solution.y_events) != 1 or len(solution.y_events[0]) != 1:
+        raise RuntimeError("阈值事件已触发，但未返回对应事件状态。")
+    event_state = np.asarray(solution.y_events[0][0], dtype=float)
+    if not np.isfinite(event_state).all():
+        raise RuntimeError("阈值事件状态存在非有限值。")
+    return grid, solution, event_time, event_state
+
+
+def continue_from_event(
+    grid: Grid,
+    environment: tuple[np.ndarray, np.ndarray, np.ndarray],
+    event_time_s: float,
+    event_state: np.ndarray,
+    report_time_s: float,
+    rtol: float,
+    atol: float,
+    h_scale: float = 1.0,
+    hm_scale: float = 1.0,
+    d_scale: float = 1.0,
+) -> Any:
+    """关闭终止事件，从事件状态真实积分到指定报告时间。"""
+    if report_time_s <= event_time_s:
+        raise ValueError("报告时间必须晚于数值临界事件。")
+    count = len(grid.radii)
+    tri = diags(
+        [np.ones(count - 1), np.ones(count), np.ones(count - 1)],
+        [-1, 0, 1], shape=(count, count), format="csc",
+    )
+    sparsity = bmat([[tri, tri], [tri, tri]], format="csc")
+    solution = solve_ivp(
+        make_rhs(grid, environment, h_scale, hm_scale, d_scale),
+        (event_time_s, report_time_s), event_state, method="BDF", dense_output=True,
+        events=None, rtol=rtol, atol=atol, max_step=60.0, jac_sparsity=sparsity,
+    )
+    if not solution.success:
+        raise RuntimeError(f"事件后续积分失败：{solution.message}")
+    if solution.sol is None or float(solution.t[-1]) < report_time_s - 1e-8:
+        raise RuntimeError("事件后续积分未覆盖报告时间。")
+    if not np.isfinite(solution.y).all():
+        raise RuntimeError("事件后续积分产生非有限值。")
+    return solution
 
 
 def sample_solution(
-    grid: Grid, solution: Any, times: np.ndarray, radii: np.ndarray
+    grid: Grid, solution: Any, times: np.ndarray, radii: np.ndarray,
+    radius_at_time: Any | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    result_t = np.empty((len(times), len(radii)))
-    result_c = np.empty_like(result_t)
+    if not getattr(solution, "success", False) or getattr(solution, "sol", None) is None:
+        raise RuntimeError("不能从失败或缺少连续插值的求解结果生成报表。")
+    times = np.asarray(times, dtype=float)
+    radii = np.asarray(radii, dtype=float)
+    if times.ndim != 1 or radii.ndim != 1 or len(times) == 0 or len(radii) == 0:
+        raise ValueError("采样时间和位置必须是一维非空数组。")
+    if not np.isfinite(times).all() or not np.isfinite(radii).all() or np.any(radii < 0.0):
+        raise ValueError("采样时间或位置存在非有限值/负半径。")
+    lower = float(solution.t_min) if hasattr(solution, "t_min") else float(solution.t[0])
+    upper = float(solution.t_max) if hasattr(solution, "t_max") else float(solution.t[-1])
+    tolerance = 1e-8 * max(1.0, abs(upper))
+    if times.min() < lower - tolerance or times.max() > upper + tolerance:
+        raise ValueError(f"采样时间必须位于真实积分区间[{lower:.9f}, {upper:.9f}] s内。")
+    result_t = np.full((len(times), len(radii)), np.nan)
+    result_c = np.full_like(result_t, np.nan)
     count = len(grid.radii)
     for start in range(0, len(times), 600):
         stop = min(start + 600, len(times))
         state = solution.sol(times[start:stop])
+        if state.shape != (2 * count, stop - start) or not np.isfinite(state).all():
+            raise RuntimeError("连续解返回维度错误或非有限值。")
         for local_index in range(stop - start):
-            result_t[start + local_index] = np.interp(
-                radii, grid.radii, state[:count, local_index]
+            time_index = start + local_index
+            domain_radius = (
+                float(radius_at_time(times[time_index]))
+                if radius_at_time is not None else float(grid.radii[-1])
             )
-            result_c[start + local_index] = np.interp(
-                radii, grid.radii, state[count:, local_index]
-            )
+            if not np.isfinite(domain_radius) or domain_radius <= 0.0:
+                raise RuntimeError("移动域半径无效。")
+            valid = radii <= min(domain_radius, float(grid.radii[-1])) + 1e-12
+            if np.any(valid):
+                result_t[time_index, valid] = np.interp(
+                    radii[valid], grid.radii, state[:count, local_index]
+                )
+                result_c[time_index, valid] = np.interp(
+                    radii[valid], grid.radii, state[count:, local_index]
+                )
     return result_t, result_c
 
 
-def make_output_times(event_time_s: float) -> np.ndarray:
-    # 题目要求结果保留四位小数。采用事件后4 min内的首个整分钟作为认证输出时刻，
-    # 使中心水分在真实值和四舍五入显示值上均小于0.15 kg/kg。
-    end_time_s = np.ceil((event_time_s + 240.0) / 60.0) * 60.0
-    return np.arange(60.0, end_time_s + 0.1, 60.0)
+def make_output_times(report_time_s: float) -> np.ndarray:
+    if report_time_s < 60.0 or not np.isclose(report_time_s / 60.0, round(report_time_s / 60.0)):
+        raise ValueError("报告时间必须是至少60 s的整分钟输出点。")
+    return np.arange(60.0, report_time_s + 0.1, 60.0)
 
 
 def make_output_frame(times: np.ndarray, values: np.ndarray) -> pd.DataFrame:
@@ -276,7 +388,7 @@ def convergence_analysis(
     reference_time = None
     records = []
     for step in steps:
-        grid, solution, event_time = solve_to_threshold(
+        grid, solution, event_time, _event_state = solve_to_threshold(
             step, environment, rtol, atol, max_time_s=max_time_s
         )
         metrics = event_metrics(grid, solution, event_time)
@@ -308,7 +420,7 @@ def sensitivity_analysis(
     ]
     rows = []
     for name, h_scale, hm_scale, d_scale in scenarios:
-        grid, solution, event_time = solve_to_threshold(
+        grid, solution, event_time, _event_state = solve_to_threshold(
             0.003125, environment, rtol, atol, max_time_s=max_time_s,
             h_scale=h_scale, hm_scale=hm_scale, d_scale=d_scale,
         )
@@ -427,23 +539,48 @@ def main() -> int:
     output_dir.mkdir(parents=True, exist_ok=True)
     max_time_s = args.max_time_days * 86400.0
 
-    grid, solution, event_time = solve_to_threshold(
+    grid, event_solution, event_time, event_state = solve_to_threshold(
         args.grid_step_cm, environment, args.rtol, args.atol, max_time_s=max_time_s
     )
-    metrics = event_metrics(grid, solution, event_time)
+    metrics = event_metrics(grid, event_solution, event_time)
     count = len(grid.radii)
 
-    output_times = make_output_times(event_time)
-    _, output_moisture = sample_solution(grid, solution, output_times, OUTPUT_RADII_M)
+    report_time = max(
+        PROVISIONAL_REPORT_TIME_S,
+        np.ceil((event_time + 1e-9) / 60.0) * 60.0,
+    )
+    continuation_segments: list[Any] = []
+    continuation_start = event_time
+    continuation_state = event_state.copy()
+    while True:
+        continuation = continue_from_event(
+            grid, environment, continuation_start, continuation_state,
+            report_time, args.rtol, args.atol,
+        )
+        continuation_segments.append(continuation)
+        report_state = continuation.sol(np.array([report_time]))[:, 0]
+        if not np.isfinite(report_state).all():
+            raise RuntimeError("报告时刻状态存在非有限值。")
+        report_max_moisture = float(np.max(report_state[count:]))
+        if report_max_moisture < REPORT_ROUNDING_LIMIT:
+            break
+        continuation_start = report_time
+        continuation_state = report_state
+        report_time += 60.0
+        if report_time > max_time_s:
+            raise RuntimeError("在最大搜索时长内未找到四位小数明确低于0.1500的报告点。")
+
+    report_solution = PiecewiseSolution((event_solution, *continuation_segments))
+    output_times = make_output_times(report_time)
+    _, output_moisture = sample_solution(grid, report_solution, output_times, OUTPUT_RADII_M)
     if not np.isfinite(output_moisture).all():
         raise RuntimeError("结果存在NaN或无穷值。")
     if output_moisture.min() < environment[2].min() - 1e-6 or output_moisture.max() > INITIAL_MOISTURE + 1e-7:
         raise RuntimeError("水分结果违反物理包络。")
 
-    event_state = solution.sol(np.array([event_time]))[:, 0]
     event_moisture = event_state[count:]
     before_time = max(0.0, event_time - 1.0)
-    before_max = float(np.max(solution.sol(np.array([before_time]))[count:, 0]))
+    before_max = float(np.max(event_solution.sol(np.array([before_time]))[count:, 0]))
     if np.max(event_moisture) > TARGET_MOISTURE + 2e-8:
         raise RuntimeError("事件时刻仍有位置超过目标含水率。")
     if before_max <= TARGET_MOISTURE:
@@ -452,12 +589,13 @@ def main() -> int:
     full_frame = make_output_frame(output_times, output_moisture)
     full_frame.to_csv(output_dir / "q3_moisture_full.csv", index=False, encoding="utf-8-sig")
 
-    regular_table_times = np.arange(6.0 * 3600.0, np.floor(event_time / 21600.0) * 21600.0 + 1.0, 21600.0)
-    table_times = np.append(regular_table_times, event_time)
-    _, table_moisture = sample_solution(grid, solution, table_times, TABLE_RADII_M)
+    regular_table_times = np.arange(6.0 * 3600.0, report_time - 1e-8, 6.0 * 3600.0)
+    table_times = np.append(regular_table_times, report_time)
+    _, table_moisture = sample_solution(grid, report_solution, table_times, TABLE_RADII_M)
     paper = pd.DataFrame(
         table_moisture,
-        index=[f"{t / 3600:.0f}" for t in regular_table_times] + ["烘干结束时间"],
+        index=[f"{t / 3600:.0f}" for t in regular_table_times]
+        + [f"保守报告时间（{report_time / 3600:.2f} h）"],
         columns=["0", "0.5", "1", "1.5", "2"],
     )
     paper.index.name = "时间/h"
@@ -473,12 +611,12 @@ def main() -> int:
         if args.skip_diagnostics or args.skip_sensitivity
         else sensitivity_analysis(environment, args.rtol, args.atol, max_time_s)
     )
-    balance = conservation_report(grid, solution, environment)
+    balance = conservation_report(grid, event_solution, environment)
     convergence.to_csv(output_dir / "q3_convergence.csv", index=False, encoding="utf-8-sig")
     sensitivity.to_csv(output_dir / "q3_sensitivity.csv", index=False, encoding="utf-8-sig")
 
-    plot_profiles(grid, solution, event_time, output_dir / "q3_radial_profiles.png")
-    plot_max_moisture(solution, count, event_time, output_dir / "q3_threshold_event.png")
+    plot_profiles(grid, event_solution, event_time, output_dir / "q3_radial_profiles.png")
+    plot_max_moisture(event_solution, count, event_time, output_dir / "q3_threshold_event.png")
     plot_flow(output_dir / "q3_model_flow.png")
 
     summary = {
@@ -496,10 +634,20 @@ def main() -> int:
         "numerics": {
             "grid_step_cm": args.grid_step_cm, "radial_nodes": count,
             "rtol": args.rtol, "atol": args.atol, "max_step_s": 60.0,
-            "nfev": int(solution.nfev), "njev": int(solution.njev), "nlu": int(solution.nlu),
+            "event_nfev": int(event_solution.nfev),
+            "continuation_nfev": int(sum(s.nfev for s in continuation_segments)),
+            "total_nfev": int(report_solution.nfev),
             "output_rows": len(output_times),
         },
-        "event": metrics,
+        "theoretical_event": metrics,
+        "conservative_report": {
+            "report_time_s": report_time,
+            "report_time_h": report_time / 3600.0,
+            "max_full_grid_moisture_kgkg": report_max_moisture,
+            "strictly_below_0_15": bool(report_max_moisture < TARGET_MOISTURE),
+            "rounds_below_0_1500": bool(report_max_moisture < REPORT_ROUNDING_LIMIT),
+            "provisional_time_s": PROVISIONAL_REPORT_TIME_S,
+        },
         "event_checks": {
             "max_moisture_one_second_before": before_max,
             "max_moisture_at_event": float(np.max(event_moisture)),
@@ -526,8 +674,15 @@ def main() -> int:
     if missing:
         raise RuntimeError(f"输出完整性校验失败：{missing}")
     print(f"求解成功：{count}个径向节点，{len(output_times)}个输出时刻。")
-    print(f"BDF统计：nfev={solution.nfev}, njev={solution.njev}, nlu={solution.nlu}")
-    print(f"烘干结束时间={event_time / 3600:.9f} h ({event_time:.6f} s)")
+    print(
+        f"BDF统计：事件段nfev={event_solution.nfev}，"
+        f"续积分段nfev={sum(s.nfev for s in continuation_segments)}"
+    )
+    print(f"数值临界时间={event_time / 3600:.9f} h ({event_time:.6f} s)")
+    print(
+        f"保守报告时间={report_time / 3600:.9f} h ({report_time:.0f} s)，"
+        f"全节点最大未舍入含水率={report_max_moisture:.12f}"
+    )
     print(
         f"关键位置={metrics['critical_radius_cm']:.6f} cm；"
         f"中心/表面水分={metrics['center_moisture_kgkg']:.9f}/"
